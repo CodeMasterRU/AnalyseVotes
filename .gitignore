@@ -24,4 +24,5 @@ __pycache__/
 
 __pycache__
 
+# Python files with sensitive data
 analyse_data.py
