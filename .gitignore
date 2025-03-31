@@ -21,3 +21,7 @@ __pycache__/
 
 # Environment variables
 .env
+
+__pycache__
+
+analyse_data.py
