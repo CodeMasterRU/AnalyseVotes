@@ -149,13 +149,20 @@ def run_diplomes(diplomes_communes, diplomes_departements, pres_df, leg_df=None)
     merged_df[nodip_h_col] = merged_df[nodip_h_col].replace([np.inf, -np.inf], 0).fillna(0)
     merged_df[nodip_f_col] = merged_df[nodip_f_col].replace([np.inf, -np.inf], 0).fillna(0)
     
-    # Рассчитываем процент людей с высшим образованием с проверкой деления на 0
-    denominator = merged_df[nodip_h_col] + merged_df[nodip_f_col]
-    denominator = denominator.replace(0, 1)  # Заменяем 0 на 1, чтобы избежать деления на 0
-    merged_df['percent_high_edu'] = (merged_df[sup_h_col] + merged_df[sup_f_col]) / denominator * 100
+    # Исправляем расчет процента людей с высшим образованием
+    total_population = (
+        merged_df[sup_h_col] + merged_df[sup_f_col] +  # люди с высшим образованием
+        merged_df[nodip_h_col] + merged_df[nodip_f_col]  # люди без высшего образования
+    )
     
-    # Удаляем строки с оставшимися NaN или inf значениями
-    merged_df = merged_df.replace([np.inf, -np.inf], np.nan).dropna(subset=['percent_high_edu'] + vote_columns)
+    merged_df['percent_high_edu'] = np.where(
+        total_population > 0,
+        ((merged_df[sup_h_col] + merged_df[sup_f_col]) / total_population * 100).round(2),
+        0
+    )
+    
+    # Удаляем аномальные значения
+    merged_df = merged_df[merged_df['percent_high_edu'] <= 100]
     
     # 2. Фильтрация данных по выбранному году
     st.subheader(f"Analyse du niveau d'éducation pour l'année {selected_year}")
@@ -258,7 +265,7 @@ def run_diplomes(diplomes_communes, diplomes_departements, pres_df, leg_df=None)
     fig.update_layout(
         title=f'Top-5 départements par niveau d\'éducation ({selected_year})',
         xaxis_title='Département',
-        yaxis_title='Pourcentage de personnes avec un niveau d\'éducation supérieur (%)',
+        yaxis_title='Pourcentage de personnes avec un niveau d\'education supérieur (%)',
         hovermode='x'
     )
 
@@ -319,4 +326,164 @@ def run_diplomes(diplomes_communes, diplomes_departements, pres_df, leg_df=None)
                           'variable': 'Sexe'})
     st.plotly_chart(fig3)
     
-    # Дополнительные графики можно добавлять аналогично вышеуказанным, чтобы визуализировать динамику, распределение и т.д.
+    # Add correlation analysis here (inside the run_diplomes function)
+    st.header("Analyse de corrélation entre l'éducation et les votes")
+
+    try:
+        # Prepare education and voting data
+        education_voting_data = pd.DataFrame()
+        
+        # Безопасно добавляем информацию о коммуне
+        if 'nomcommune' in merged_df.columns:
+            education_voting_data['commune'] = merged_df['nomcommune']
+        elif 'commune' in merged_df.columns:
+            education_voting_data['commune'] = merged_df['commune']
+        else:
+            education_voting_data['commune'] = merged_df.index
+            
+        # Безопасно добавляем информацию о департаменте
+        if 'nomdep' in merged_df.columns:
+            education_voting_data['departement'] = merged_df['nomdep']
+        elif 'departement' in merged_df.columns:
+            education_voting_data['departement'] = merged_df['departement']
+        else:
+            education_voting_data['departement'] = 'Non spécifié'
+
+        # Calculate education percentages
+        total_education = (
+        merged_df[f'suph{selected_year}'] + 
+        merged_df[f'supf{selected_year}'] + 
+        merged_df[f'bach{selected_year}'] + 
+        merged_df[f'bacf{selected_year}'] + 
+        merged_df[f'nodiph{selected_year}'] + 
+        merged_df[f'nodipf{selected_year}']
+        ).replace(0, np.nan)
+
+        education_voting_data['pct_superior'] = (
+        (merged_df[f'suph{selected_year}'] + merged_df[f'supf{selected_year}']) / total_education * 100
+        ).fillna(0)
+
+        education_voting_data['pct_bac'] = (
+        (merged_df[f'bach{selected_year}'] + merged_df[f'bacf{selected_year}']) / total_education * 100
+        ).fillna(0)
+
+        education_voting_data['pct_nodip'] = (
+        (merged_df[f'nodiph{selected_year}'] + merged_df[f'nodipf{selected_year}']) / total_education * 100
+        ).fillna(0)
+
+        # Add voting data with percentages instead of absolute numbers
+        total_votes = sum(merged_df[col] for col in vote_columns)
+        for col in vote_columns:
+            education_voting_data[col] = (merged_df[col] / total_votes * 100).fillna(0)
+
+        # Create correlation analysis tabs
+        corr_tab1, corr_tab2 = st.tabs(["Graphiques de corrélation", "Matrice de corrélation"])
+
+        with corr_tab1:
+            # Select candidate/party for analysis
+            vote_cols = [col for col in education_voting_data.columns if col.startswith('voix')]
+            selected_candidate = st.selectbox(
+            "Sélectionnez un candidat/parti pour l'analyse de corrélation",
+            vote_cols,
+            format_func=lambda x: x[4:]
+            )
+
+        # Create scatter plots
+        fig_sup = px.scatter(education_voting_data, 
+        x='pct_superior', 
+        y=selected_candidate,
+        trendline="ols",
+        title=f"Corrélation: Niveau supérieur et votes pour {selected_candidate[4:]}",
+        labels={
+        'pct_superior': '% Éducation supérieure',
+        selected_candidate: 'Nombre de votes'
+        }
+        )
+        
+        # Улучшаем читаемость графика
+        fig_sup.update_layout(
+            xaxis_range=[0, 100],  # Ограничиваем процент от 0 до 100
+            showlegend=True,
+            height=600,
+            width=800
+        )
+        
+        # Добавляем подписи точек при наведении
+        fig_sup.update_traces(
+            hovertemplate="<br>".join([
+                "Commune: %{text}",
+                "% Education supérieure: %{x:.1f}%",
+                "Votes: %{y}"
+            ]),
+            text=education_voting_data['commune']
+        )
+        st.plotly_chart(fig_sup)
+
+        # Calculate and display correlation coefficients
+        corr_sup = education_voting_data['pct_superior'].corr(education_voting_data[selected_candidate])
+        corr_bac = education_voting_data['pct_bac'].corr(education_voting_data[selected_candidate])
+        corr_nodip = education_voting_data['pct_nodip'].corr(education_voting_data[selected_candidate])
+
+        st.write(f"Coefficients de corrélation pour {selected_candidate[4:]}:")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Niveau supérieur", f"{corr_sup:.3f}")
+        with col2:
+            st.metric("Niveau Bac", f"{corr_bac:.3f}")
+        with col3:
+            st.metric("Sans diplôme", f"{corr_nodip:.3f}")
+
+        with corr_tab2:
+            # Create correlation matrix only for education levels and votes
+            education_cols = ['pct_superior', 'pct_bac', 'pct_nodip']
+            corr_matrix = pd.DataFrame()
+            
+            # Calculate correlations between education and votes
+            for edu_col in education_cols:
+                correlations = []
+                for vote_col in vote_cols:
+                    corr = education_voting_data[edu_col].corr(education_voting_data[vote_col])
+                    correlations.append(corr)
+                corr_matrix[edu_col] = correlations
+            
+            corr_matrix.index = [col[4:] for col in vote_cols]  # Remove 'voix' prefix
+            corr_matrix.columns = ['Niveau supérieur', 'Niveau Bac', 'Sans diplôme']
+            
+            # Create heatmap with better layout
+            fig_matrix = px.imshow(
+                corr_matrix,
+                labels=dict(color="Correlation"),
+                color_continuous_scale="RdBu_r",
+                title="Corrélation entre niveaux d'éducation et votes par candidat",
+                aspect="auto"  # Adjust aspect ratio
+            )
+            
+            # Improve layout
+            fig_matrix.update_layout(
+                xaxis_title="Niveau d'éducation",
+                yaxis_title="Candidats",
+                width=800,
+                height=600
+            )
+            
+            st.plotly_chart(fig_matrix)
+        
+        # Move all the code up to the final st.plotly_chart(fig_matrix) here
+        
+    except Exception as e:
+        st.error(f"Erreur lors de l'analyse de corrélation: {str(e)}")
+
+        # Remove all the correlation analysis code that was here at the module level
+        
+        # После вывода коэффициентов корреляции
+        def get_correlation_interpretation(corr):
+            if abs(corr) < 0.1:
+                return "Corrélation très faible ou inexistante"
+            elif abs(corr) < 0.3:
+                return "Corrélation faible"
+            else:
+                return "Corrélation modérée"
+                
+        st.write("### Interprétation des corrélations")
+        for coef, level in [(corr_sup, "supérieur"), (corr_bac, "bac"), (corr_nodip, "sans diplôme")]:
+            st.write(f"- Niveau {level}: {coef:.3f} - {get_correlation_interpretation(coef)}")

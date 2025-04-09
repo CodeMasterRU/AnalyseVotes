@@ -63,55 +63,119 @@ def run_elections(pres_df, leg_df, diplomes_communes, diplomes_departements):
 
     # Добавляем анализ образования
     st.header("Analyse du niveau d'éducation")
-
-    # График тенденций образования по департаментам
-    st.subheader("Tendances de l'éducation par département")
     
     selected_year = st.selectbox("Sélectionnez l'année", range(2010, 2023))
     
     # График 1: Тенденции образования по департаментам
     fig1 = go.Figure()
-    top_deps = diplomes_departements.nlargest(5, f'sup{selected_year}')
-    fig1.add_trace(go.Bar(
-        x=top_deps['nomdep'],
-        y=top_deps[f'sup{selected_year}'],
-        name='Niveau supérieur'
-    ))
-    fig1.update_layout(
-        title=f'Top-5 départements par niveau d\'éducation ({selected_year})',
-        xaxis_title='Département',
-        yaxis_title='Nombre de diplômés'
-    )
-    st.plotly_chart(fig1)
+    # Using the selected department from sidebar
+    dept_education_data = diplomes_departements[diplomes_departements['nomdep'] == departement_selectionne]
+    if not dept_education_data.empty:
+        fig1.add_trace(go.Bar(
+            x=['Supérieur', 'Bac', 'Sans diplôme'],
+            y=[
+                dept_education_data[f'sup{selected_year}'].iloc[0],
+                dept_education_data[f'bac{selected_year}'].iloc[0],
+                dept_education_data[f'nodip{selected_year}'].iloc[0]
+            ],
+            name='Niveau d\'éducation'
+        ))
+        fig1.update_layout(
+            title=f'Niveau d\'éducation dans le département {departement_selectionne} ({selected_year})',
+            xaxis_title='Niveau',
+            yaxis_title='Nombre de diplômés'
+        )
+        st.plotly_chart(fig1)
 
-    # График 2: Анализ по полу
+    # График 2: Анализ по полу для выбранного департамента
     st.subheader("Tendances de l'éducation par sexe")
-    selected_dept = st.selectbox("Sélectionnez un département pour l'analyse par sexe", 
-                               diplomes_departements['nomdep'].unique())
     
-    dept_data = diplomes_communes[diplomes_communes['nomdep'] == selected_dept]
+    # Using the selected department from sidebar
+    dept_data = diplomes_communes[diplomes_communes['nomdep'] == departement_selectionne]
     
-    fig2 = go.Figure()
-    fig2.add_trace(go.Bar(
-        name='Hommes',
-        x=['Supérieur', 'Bac', 'Sans diplôme'],
-        y=[
-            dept_data[f'suph{selected_year}'].sum(),
-            dept_data[f'bach{selected_year}'].sum(),
-            dept_data[f'nodiph{selected_year}'].sum()
-        ]
-    ))
-    fig2.add_trace(go.Bar(
-        name='Femmes',
-        x=['Supérieur', 'Bac', 'Sans diplôme'],
-        y=[
-            dept_data[f'supf{selected_year}'].sum(),
-            dept_data[f'bacf{selected_year}'].sum(),
-            dept_data[f'nodipf{selected_year}'].sum()
-        ]
-    ))
-    fig2.update_layout(
-        barmode='group',
-        title=f'Répartition par sexe et niveau d\'éducation - {selected_dept} ({selected_year})'
-    )
-    st.plotly_chart(fig2)
+    if not dept_data.empty:
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(
+            name='Hommes',
+            x=['Supérieur', 'Bac', 'Sans diplôme'],
+            y=[
+                dept_data[f'suph{selected_year}'].sum(),
+                dept_data[f'bach{selected_year}'].sum(),
+                dept_data[f'nodiph{selected_year}'].sum()
+            ]
+        ))
+        fig2.add_trace(go.Bar(
+            name='Femmes',
+            x=['Supérieur', 'Bac', 'Sans diplôme'],
+            y=[
+                dept_data[f'supf{selected_year}'].sum(),
+                dept_data[f'bacf{selected_year}'].sum(),
+                dept_data[f'nodipf{selected_year}'].sum()
+            ]
+        ))
+        fig2.update_layout(
+            barmode='group',
+            title=f'Répartition par sexe et niveau d\'éducation - {departement_selectionne} ({selected_year})'
+        )
+        st.plotly_chart(fig2)
+    
+    # Analyse for selected commune
+    st.header(f"Analyse du niveau d'éducation - {commune_selectionnee}")
+    
+    # Get commune data and verify it exists
+    commune_education_data = diplomes_communes[
+        (diplomes_communes['nomcommune'] == commune_selectionnee) & 
+        (diplomes_communes['nomdep'] == departement_selectionne)
+    ]
+    
+    if not commune_education_data.empty:
+        try:
+            # Chart 1: Total education levels in commune
+            total_sup = commune_education_data[f'suph{selected_year}'].values[0] + commune_education_data[f'supf{selected_year}'].values[0]
+            total_bac = commune_education_data[f'bach{selected_year}'].values[0] + commune_education_data[f'bacf{selected_year}'].values[0]
+            total_nodip = commune_education_data[f'nodiph{selected_year}'].values[0] + commune_education_data[f'nodipf{selected_year}'].values[0]
+
+            fig3 = go.Figure()
+            fig3.add_trace(go.Bar(
+                x=['Supérieur', 'Bac', 'Sans diplôme'],
+                y=[total_sup, total_bac, total_nodip],
+                name='Total'
+            ))
+            fig3.update_layout(
+                title=f'Niveau d\'éducation à {commune_selectionnee} ({selected_year})',
+                xaxis_title='Niveau',
+                yaxis_title='Nombre de diplômés'
+            )
+            st.plotly_chart(fig3)
+
+            # Chart 2: Gender distribution in commune
+            st.subheader(f"Répartition par sexe - {commune_selectionnee}")
+            fig4 = go.Figure()
+            fig4.add_trace(go.Bar(
+                name='Hommes',
+                x=['Supérieur', 'Bac', 'Sans diplôme'],
+                y=[
+                    commune_education_data[f'suph{selected_year}'].values[0],
+                    commune_education_data[f'bach{selected_year}'].values[0],
+                    commune_education_data[f'nodiph{selected_year}'].values[0]
+                ]
+            ))
+            fig4.add_trace(go.Bar(
+                name='Femmes',
+                x=['Supérieur', 'Bac', 'Sans diplôme'],
+                y=[
+                    commune_education_data[f'supf{selected_year}'].values[0],
+                    commune_education_data[f'bacf{selected_year}'].values[0],
+                    commune_education_data[f'nodipf{selected_year}'].values[0]
+                ]
+            ))
+            fig4.update_layout(
+                barmode='group',
+                title=f'Répartition par sexe et niveau d\'éducation - {commune_selectionnee} ({selected_year})'
+            )
+            st.plotly_chart(fig4)
+        except Exception as e:
+            st.warning(f"Impossible d'afficher les données pour la commune {commune_selectionnee}")
+            logging.error(f"Error displaying commune data: {str(e)}")
+    else:
+        st.warning(f"Aucune donnée disponible pour la commune {commune_selectionnee}")
