@@ -53,7 +53,7 @@ else:
 
 if selected == "Carte interactive":
     st.session_state.page = 'Carte interactive'
-    App.app1.run_elections(data["pres_df"], data["leg_df"])
+    App.app1.run_elections(data["pres_df"], data["leg_df"], data["diplomes_communes"], data["diplomes_departements"])
 elif selected == "Capital_immobilier":
     st.session_state.page = 'Capital_immobilier'
     App.app2.run_immobilier(
