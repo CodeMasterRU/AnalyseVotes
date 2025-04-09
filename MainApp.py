@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 import logging
-import App.app1, App.app2, App.app3
+import App.app1, App.app2, App.app3, App.app4
 from streamlit_option_menu import option_menu
 
 st.set_page_config(page_title="Data Visualization", layout="wide")
@@ -11,8 +11,8 @@ st.title("🌍 DATAVISUALISATION")
 
 selected = option_menu(
     menu_title=None,
-    options=["Carte interactive", "Capital_immobilier", "Diplomes"],
-    icons=["map", "bar-chart", "book"],
+    options=["Carte interactive", "Capital_immobilier", "Diplomes", "Analyse historique"],
+    icons=["map", "bar-chart", "book", "clock-history"],
     menu_icon="cast",
     default_index=0,
     orientation="horizontal",
@@ -72,4 +72,9 @@ elif selected == "Diplomes":
         diplomes_departements=data["diplomes_departements"],
         pres_df=data["pres_df"],
         leg_df=data["leg_df"]
+    )
+elif selected == "Analyse historique":
+    st.session_state.page = 'Analyse historique'
+    App.app4.run_detailed_analysis(
+        alpha_df=data["alphabetisation"]
     )
