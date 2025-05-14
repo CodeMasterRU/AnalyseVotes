@@ -4,6 +4,25 @@ import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 
+@st.cache_data
+def prepare_national_data(alpha_df):
+    # Подготовка данных для национальной статистики
+    sign_columns = [col for col in alpha_df.columns if col.startswith('conjsign')]
+    nosi_columns = [col for col in alpha_df.columns if col.startswith('conjnosi')]
+    
+    sign_data = {}
+    nosign_data = {}
+    
+    for col in sign_columns:
+        year = col.replace('conjsign', '')
+        sign_data[year] = alpha_df[col].mean()
+    
+    for col in nosi_columns:
+        year = col.replace('conjnosi', '')
+        nosign_data[year] = alpha_df[col].mean()
+    
+    return sign_data, nosign_data
+
 def run_detailed_analysis(alpha_df):
     try:
         st.title("Analyse détaillée par département et commune")
@@ -144,127 +163,101 @@ def run_detailed_analysis(alpha_df):
                 f"Top {(commune_rank/total_communes*100):.1f}%"
             )
             
-            with tab3:
-                st.subheader("Évolution des indicateurs d'alphabétisation en France")
-                
-                # Подготовка данных для подписей
-                sign_data = alpha_df[['conjsign1686', 'conjsign1786', 'conjsign1816']].mean()
-                nosign_data = alpha_df[['conjnosi1686', 'conjnosi1786', 'conjnosi1816']].mean()
-                
-                # График для подписывающих/неподписывающих
-                fig_sign = go.Figure()
-                fig_sign.add_trace(go.Scatter(
-                    x=['1686', '1786', '1816'],
-                    y=sign_data,
-                    name='Personnes sachant signer',
-                    mode='lines+markers'
-                ))
-                fig_sign.add_trace(go.Scatter(
-                    x=['1686', '1786', '1816'],
-                    y=nosign_data,
-                    name='Personnes ne sachant pas signer',
-                    mode='lines+markers'
-                ))
-                
-                fig_sign.update_layout(
-                    title="Évolution de la capacité à signer (moyenne nationale)",
-                    xaxis_title="Année",
-                    yaxis_title="Nombre moyen de personnes",
-                    height=500
-                )
-                st.plotly_chart(fig_sign, use_container_width=True)
-                
-                # График для процента алфабетизации
-                years_alpha = range(1816, 1947)
-                alpha_means = {
-                    'year': [],
-                    'palpha': [],
-                    'peralpha': []
-                }
-                
-                for year in years_alpha:
-                    if f'palpha{year}' in alpha_df.columns and f'peralpha{year}' in alpha_df.columns:
-                        alpha_means['year'].append(year)
-                        alpha_means['palpha'].append(alpha_df[f'palpha{year}'].mean())
-                        alpha_means['peralpha'].append(alpha_df[f'peralpha{year}'].mean())
-                
-                fig_alpha = go.Figure()
-                fig_alpha.add_trace(go.Scatter(
-                    x=alpha_means['year'],
-                    y=alpha_means['palpha'],
-                    name='Nombre alphabétisés',
-                    mode='lines+markers'
-                ))
-                fig_alpha.add_trace(go.Scatter(
-                    x=alpha_means['year'],
-                    y=alpha_means['peralpha'],
-                    name='Pourcentage alphabétisation',
-                    mode='lines+markers'
-                ))
-                
-                fig_alpha.update_layout(
-                    title="Évolution de l'alphabétisation en France (1816-1946)",
-                    xaxis_title="Année",
-                    yaxis_title="Valeur moyenne",
-                    height=500
-                )
-                st.plotly_chart(fig_alpha, use_container_width=True)
-                
-                # Добавляем статистику изменений
-                col1, col2 = st.columns(2)
-                with col1:
-                    sign_change = ((sign_data['conjsign1816'] - sign_data['conjsign1686']) / sign_data['conjsign1686'] * 100)
-                    st.metric(
-                        "Évolution capacité à signer (1686-1816)",
-                        f"{sign_change:.1f}%"
-                    )
-                with col2:
-                    alpha_change = alpha_means['peralpha'][-1] - alpha_means['peralpha'][0]
-                    st.metric(
-                        "Évolution taux d'alphabétisation (1816-1946)",
-                        f"{alpha_change:.1f}%"
-                    )
+        with tab3:
+            st.subheader("Évolution des indicateurs d'alphabétisation en France")
             
-        # Улучшенный box plot
-        fig2 = go.Figure()
-        fig2.add_trace(go.Box(
-            y=dep_data[comparison_col],
-            name=selected_dep,
-            boxpoints='all',
-            jitter=0.3,
-            pointpos=-1.8
-        ))
-        
-        # Добавляем точку для выбранной коммуны
-        fig2.add_trace(
-            go.Scatter(
-                x=[selected_dep],
-                y=[commune_data[comparison_col]],
-                mode='markers',
-                name=selected_commune,
-                marker=dict(size=12, color='red', symbol='star')
+            # Подготовка данных для подписей
+            sign_columns = [col for col in alpha_df.columns if col.startswith('conjsign')]
+            nosi_columns = [col for col in alpha_df.columns if col.startswith('conjnosi')]
+            
+            sign_data = {}
+            nosign_data = {}
+            
+            for col in sign_columns:
+                year = col.replace('conjsign', '')
+                sign_data[year] = alpha_df[col].mean()
+            
+            for col in nosi_columns:
+                year = col.replace('conjnosi', '')
+                nosign_data[year] = alpha_df[col].mean()
+            
+            # График для подписывающих/неподписывающих
+            fig_sign = go.Figure()
+            fig_sign.add_trace(go.Scatter(
+                x=list(sign_data.keys()),
+                y=list(sign_data.values()),
+                name='Personnes sachant signer',
+                mode='lines+markers'
+            ))
+            fig_sign.add_trace(go.Scatter(
+                x=list(nosign_data.keys()),
+                y=list(nosign_data.values()),
+                name='Personnes ne sachant pas signer',
+                mode='lines+markers'
+            ))
+            
+            fig_sign.update_layout(
+                title="Évolution de la capacité à signer (moyenne nationale)",
+                xaxis_title="Année",
+                yaxis_title="Nombre moyen de personnes",
+                height=500
             )
-        )
+            st.plotly_chart(fig_sign, use_container_width=True)
+            
+            # График для процента алфабетизации
+            years_alpha = range(1816, 1947)
+            alpha_means = {
+                'year': [],
+                'palpha': [],
+                'peralpha': []
+            }
+            
+            for year in years_alpha:
+                if f'palpha{year}' in alpha_df.columns and f'peralpha{year}' in alpha_df.columns:
+                    alpha_means['year'].append(year)
+                    alpha_means['palpha'].append(alpha_df[f'palpha{year}'].mean())
+                    alpha_means['peralpha'].append(alpha_df[f'peralpha{year}'].mean())
+            
+            fig_alpha = go.Figure()
+            fig_alpha.add_trace(go.Scatter(
+                x=alpha_means['year'],
+                y=alpha_means['palpha'],
+                name='Nombre alphabétisés',
+                mode='lines+markers'
+            ))
+            fig_alpha.add_trace(go.Scatter(
+                x=alpha_means['year'],
+                y=alpha_means['peralpha'],
+                name='Pourcentage alphabétisation',
+                mode='lines+markers'
+            ))
+            
+            fig_alpha.update_layout(
+                title="Évolution de l'alphabétisation en France (1816-1946)",
+                xaxis_title="Année",
+                yaxis_title="Valeur moyenne",
+                height=500
+            )
+            st.plotly_chart(fig_alpha, use_container_width=True)
+            
+            # Добавляем статистику изменений
+            col1, col2 = st.columns(2)
+            with col1:
+                years_sign = sorted(list(sign_data.keys()))
+                first_year = years_sign[0]
+                last_year = years_sign[-1]
+                sign_change = ((sign_data[last_year] - sign_data[first_year]) / sign_data[first_year] * 100)
+                st.metric(
+                    f"Évolution capacité à signer ({first_year}-{last_year})",
+                    f"{sign_change:.1f}%"
+                )
+            with col2:
+                alpha_change = alpha_means['peralpha'][-1] - alpha_means['peralpha'][0]
+                st.metric(
+                    "Évolution taux d'alphabétisation (1816-1946)",
+                    f"{alpha_change:.1f}%"
+                )
         
-        fig2.update_layout(
-            title=f"Distribution du taux d'alphabétisation dans {selected_dep} ({year_comparison})",
-            yaxis_title="Taux d'alphabétisation (%)",
-            showlegend=True,
-            height=500
-        )
-        
-        st.plotly_chart(fig2, use_container_width=True)
-        
-        # Добавляем ранг коммуны
-        commune_rank = dep_data[comparison_col].rank(ascending=False)
-        commune_rank = commune_rank[dep_data['nomcommune'] == selected_commune].iloc[0]
-        total_communes = len(dep_data)
-        
-        st.metric(
-            "Rang de la commune",
-            f"{int(commune_rank)} sur {total_communes}",
-            f"Top {(commune_rank/total_communes*100):.1f}%"
-        )
-        
+        # Delete everything below this point until the except statement
     except Exception as e:
         st.error(f"Une erreur s'est produite: {str(e)}")
